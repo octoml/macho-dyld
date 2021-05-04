@@ -31,11 +31,15 @@
 #include <stdlib.h>
 #include <mach/mach_time.h> // struct mach_timebase_info
 #include <mach/mach_init.h> // struct mach_thread_self
+#if !UNSIGN_TOLERANT
 #include <mach/shared_region.h>
+#endif
 #include <mach-o/loader.h> 
 #include <mach-o/nlist.h> 
 #include <mach-o/dyld_images.h>
+#if !UNSIGN_TOLERANT
 #include <mach-o/dyld_priv.h>
+#endif
 #include <stdint.h>
 #include <stdlib.h>
 #include <TargetConditionals.h>
@@ -49,9 +53,9 @@
   #define CRSetCrashLogMessage(x)
   #define CRSetCrashLogMessage2(x)
 #endif
-
+#if !UNSIGN_TOLERANT
 #include "DyldSharedCache.h"
-
+#endif
 #include "Map.h"
 
 #if __arm__
@@ -92,7 +96,7 @@
 	#define SUPPORT_OLD_CRT_INITIALIZATION	__i386__
 	#define SUPPORT_LC_DYLD_ENVIRONMENT		1
 	#define SUPPORT_VERSIONED_PATHS			1
-	#define SUPPORT_CLASSIC_MACHO			1
+	#define SUPPORT_CLASSIC_MACHO			!UNSIGN_TOLERANT
 	#define SUPPORT_ZERO_COST_EXCEPTIONS	1
 	#define INITIAL_IMAGE_COUNT				200
 	#define SUPPORT_ACCELERATE_TABLES		0
@@ -119,6 +123,8 @@
                __vector_base<type, std::allocator<type> >::~__vector_base() { } \
        }
 
+namespace isolator {
+
 // utilities
 namespace dyld {
 	extern __attribute__((noreturn)) void throwf(const char* format, ...)  __attribute__((format(printf, 1, 2)));
@@ -129,8 +135,8 @@ namespace dyld {
 	extern void logBindings(const char* format, ...)  __attribute__((format(printf, 1, 2)));
 #endif
 }
-extern "C" 	int   vm_alloc(vm_address_t* addr, vm_size_t size, uint32_t flags);
-extern "C" 	void* xmmap(void* addr, size_t len, int prot, int flags, int fd, off_t offset);
+extern "C" 	int   vm_alloc__(vm_address_t* addr, vm_size_t size, uint32_t flags);
+extern "C" 	void* xmmap__(void* addr, size_t len, int prot, int flags, int fd, off_t offset);
 
 
 #if __LP64__
@@ -296,7 +302,9 @@ public:
 #if SUPPORT_ROOT_PATH
 		const char**	rootPaths;
 #endif
+#if !UNSIGN_TOLERANT
 		const DyldSharedCache*  dyldCache;
+#endif
 		const dyld_interpose_tuple*	dynamicInterposeArray;
 		size_t			dynamicInterposeCount;
 		PrebindMode		prebindUsage;
@@ -545,10 +553,10 @@ public:
 			
 										// return if this image has specified section and set start and length
 	virtual bool						getSectionContent(const char* segmentName, const char* sectionName, void** start, size_t* length) = 0;
-
+#if !UNSIGN_TOLERANT
 										// fills in info about __eh_frame and __unwind_info sections
 	virtual void						getUnwindInfo(dyld_unwind_sections* info) = 0;
-
+#endif
 										// given a pointer into an image, find which segment and section it is in
 	virtual const struct macho_section* findSection(const void* imageInterior) const = 0;
 
@@ -743,7 +751,7 @@ protected:
 
 	typedef void (*Initializer)(int argc, const char* argv[], const char* envp[], const char* apple[], const ProgramVars* vars);
 	typedef void (*Terminator)(void);
-	
+
 
 
 	unsigned int			libraryCount() const { return fLibraryCount; }
@@ -909,8 +917,9 @@ private:
 
 };
 
+}
 
-VECTOR_NEVER_DESTRUCTED_EXTERN(ImageLoader::InterposeTuple);
+VECTOR_NEVER_DESTRUCTED_EXTERN(isolator::ImageLoader::InterposeTuple);
 
 
 #endif

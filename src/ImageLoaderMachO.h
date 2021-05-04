@@ -43,6 +43,7 @@
 
 #define BIND_TYPE_THREADED_REBASE 102
 
+namespace isolator {
 
 //
 // ImageLoaderMachO is a subclass of ImageLoader which loads mach-o format files.
@@ -94,7 +95,9 @@ public:
 	virtual void						doTermination(const LinkContext& context);
 	virtual bool						needsInitialization();
 	virtual bool						getSectionContent(const char* segmentName, const char* sectionName, void** start, size_t* length);
+#if !UNSIGN_TOLERANT
 	virtual void						getUnwindInfo(dyld_unwind_sections* info);
+#endif
     virtual const struct macho_section* findSection(const void* imageInterior) const;
 	virtual bool						findSection(const void* imageInterior, const char** segmentName, const char** sectionName, size_t* sectionOffset);
 	virtual bool						usablePrebinding(const LinkContext& context) const;
@@ -288,7 +291,7 @@ protected:
 											
 	static uint32_t					fgSymbolTableBinarySearchs;
 };
-
+}
 
 #endif // __IMAGELOADERMACHO__
 

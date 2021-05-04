@@ -30,6 +30,7 @@
 
 #include "ImageLoaderMachO.h"
 
+namespace isolator {
 
 //
 // ImageLoaderMachOCompressed is the concrete subclass of ImageLoader which loads mach-o files 
@@ -47,7 +48,7 @@ public:
 															const LinkContext& context);
 	static ImageLoaderMachOCompressed*	instantiateFromCache(const macho_header* mh, const char* path, long slide, const struct stat& info,
 																unsigned int segCount, unsigned int libCount, const LinkContext& context);
-	static ImageLoaderMachOCompressed*	instantiateFromMemory(const char* moduleName, const macho_header* mh, uint64_t len, 
+	static ImageLoaderMachOCompressed*	instantiateFromMemory(const char* moduleName, const macho_header* mh, uint64_t len,
 															unsigned int segCount, unsigned int libCount, const LinkContext& context);
 
 
@@ -147,14 +148,15 @@ private:
     void                                updateOptimizedLazyPointers(const LinkContext& context);
     void                                updateAlternateLazyPointer(uint8_t* stub, void** originalLazyPointerAddr, const LinkContext& context);
 	void								registerEncryption(const struct encryption_info_command* encryptCmd, const LinkContext& context);
+#if !UNSIGN_TOLERANT
 	void								doApplyFixups(const LinkContext& context, const dyld_chained_fixups_header* fixupsHeader);
-
+#endif
 	const struct dyld_info_command*			fDyldInfo;
 	const struct linkedit_data_command*		fChainedFixups;
 	const struct linkedit_data_command*		fExportsTrie;
 };
 
-
+}
 
 #endif // __IMAGELOADER_MACHO_COMPRESSED__
 

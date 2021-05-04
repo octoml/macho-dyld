@@ -44,6 +44,7 @@
 
 #include "ImageLoader.h"
 
+namespace isolator {
 
 uint32_t								ImageLoader::fgImagesUsedFromSharedCache = 0;
 uint32_t								ImageLoader::fgImagesWithUsedPrebinding = 0;
@@ -405,7 +406,7 @@ uintptr_t ImageLoader::interposedAddress(const LinkContext& context, uintptr_t a
 	}
 	return address;
 }
-
+#if !UNSIGN_TOLERANT
 void ImageLoader::applyInterposingToDyldCache(const LinkContext& context) {
 	if (!context.dyldCache)
 		return;
@@ -458,7 +459,7 @@ void ImageLoader::applyInterposingToDyldCache(const LinkContext& context) {
 		});
 	}
 }
-
+#endif
 void ImageLoader::addDynamicInterposingTuples(const struct dyld_interpose_tuple array[], size_t count)
 {
 	for(size_t i=0; i < count; ++i) {
@@ -764,7 +765,9 @@ void ImageLoader::recursiveLoadLibraries(const LinkContext& context, bool prefli
 				else { 
 					dependentLib->fIsReferencedDownward = true;
 				}
+#if !UNSIGN_TOLERANT
 				LibraryInfo actualInfo = dependentLib->doGetLibraryInfo(requiredLibInfo.info);
+#endif
 				depLibReExported = requiredLibInfo.reExported;
 				if ( ! depLibReExported ) {
 					// for pre-10.5 binaries that did not use LC_REEXPORT_DYLIB
@@ -772,6 +775,7 @@ void ImageLoader::recursiveLoadLibraries(const LinkContext& context, bool prefli
 				}
 				// check found library version is compatible
 				// <rdar://problem/89200806> 0xFFFFFFFF is wildcard that matches any version
+#if !UNSIGN_TOLERANT
 				if ( (requiredLibInfo.info.minVersion != 0xFFFFFFFF) && (actualInfo.minVersion < requiredLibInfo.info.minVersion)
 						&& ((dyld3::MachOFile*)(dependentLib->machHeader()))->enforceCompatVersion() ) {
 					// record values for possible use by CrashReporter or Finder
@@ -779,6 +783,7 @@ void ImageLoader::recursiveLoadLibraries(const LinkContext& context, bool prefli
 							this->getShortName(), requiredLibInfo.info.minVersion >> 16, (requiredLibInfo.info.minVersion >> 8) & 0xff, requiredLibInfo.info.minVersion & 0xff,
 							dependentLib->getShortName(), actualInfo.minVersion >> 16, (actualInfo.minVersion >> 8) & 0xff, actualInfo.minVersion & 0xff);
 				}
+#endif
 				// prebinding for this image disabled if any dependent library changed
 				//if ( !depLibCheckSumsMatch )
 				//	canUsePrelinkingInfo = false;
@@ -1061,7 +1066,7 @@ void ImageLoader::weakBind(const LinkContext& context)
 				  // from this dlopen
 				  if ( !image->weakSymbolsBound(imageIndexes[i]) )
 					  continue;
-
+#if !UNSIGN_TOLERANT
 				  Diagnostics diag;
 				  const dyld3::MachOAnalyzer* ma = (const dyld3::MachOAnalyzer*)image->machHeader();
 				  ma->forEachWeakDef(diag, ^(const char *symbolName, uint64_t imageOffset, bool isFromExportTrie) {
@@ -1074,6 +1079,7 @@ void ImageLoader::weakBind(const LinkContext& context)
 					  }
 					  context.weakDefMap.insert({ symbolName, { image, targetAddr } });
 				  });
+#endif
 			  }
 		  }
 
@@ -1085,6 +1091,7 @@ void ImageLoader::weakBind(const LinkContext& context)
 			  // skip images without defs.  We'll process refs later
 			  if ( !image->hasCoalescedExports() )
 				  continue;
+#if !UNSIGN_TOLERANT
 			  Diagnostics diag;
 			  const dyld3::MachOAnalyzer* ma = (const dyld3::MachOAnalyzer*)image->machHeader();
 			  ma->forEachWeakDef(diag, ^(const char *symbolName, uint64_t imageOffset, bool isFromExportTrie) {
@@ -1097,6 +1104,7 @@ void ImageLoader::weakBind(const LinkContext& context)
 				  }
 				  context.weakDefMap.insert({ symbolName, { image, targetAddr } });
 			  });
+#endif
 		  }
 		// for all images that need weak binding
 		for (int i=0; i < count; ++i) {
@@ -1934,9 +1942,10 @@ void ImageLoader::forEachReExportDependent( void (^callback)(const ImageLoader*,
 	}
 }
 
+}
 
-VECTOR_NEVER_DESTRUCTED_IMPL(ImageLoader::InterposeTuple);
-VECTOR_NEVER_DESTRUCTED_IMPL(ImagePair);
+VECTOR_NEVER_DESTRUCTED_IMPL(isolator::ImageLoader::InterposeTuple);
+//VECTOR_NEVER_DESTRUCTED_IMPL(ImagePair);
 
 
 

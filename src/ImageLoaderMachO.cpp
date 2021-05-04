@@ -45,8 +45,9 @@
 #include <libkern/OSAtomic.h>
 #include <libkern/OSCacheControl.h>
 #include <stdint.h>
+#if !UNSIGN_TOLERANT
 #include <System/sys/codesign.h>
-
+#endif
 #if __has_feature(ptrauth_calls)
 #include <ptrauth.h>
 #endif
@@ -57,8 +58,9 @@
 #include "ImageLoaderMachOClassic.h"
 #endif
 #include "Tracing.h"
+#if !UNSIGN_TOLERANT
 #include "dyld2.h"
-
+#endif
 // <rdar://problem/8718137> use stack guard random value to add padding between dylibs
 extern "C" long __stack_chk_guard;
 
@@ -68,6 +70,8 @@ extern "C" long __stack_chk_guard;
   #define DRIVERKIT_LIBSYSTEM_DYLIB_PATH  "/System/DriverKit/usr/lib/libSystem.dylib"
   #define DRIVERKIT_LIBDYLD_DYLIB_PATH 	  "/System/DriverKit/usr/lib/system/libdyld.dylib"
 #endif
+
+namespace isolator {
 
 // relocation_info.r_length field has value 3 for 64-bit executables and value 2 for 32-bit executables
 #if __LP64__
@@ -1196,6 +1200,7 @@ void ImageLoaderMachO::validateFirstPages(const struct linkedit_data_command* co
 		return;
 	}
 #endif
+#if !UNSIGN_TOLERANT
 	if (codeSigCmd != NULL) {
 		void *fdata = xmmap(NULL, lenFileData, PROT_READ, MAP_SHARED, fd, offsetInFat);
 		if ( fdata == MAP_FAILED ) {
@@ -1213,6 +1218,7 @@ void ImageLoaderMachO::validateFirstPages(const struct linkedit_data_command* co
 			dyld::throwf("mmap() page compare failed for '%s'", getPath());
 		munmap(fdata, lenFileData);
 	}
+#endif
 }
 
 
@@ -1794,7 +1800,7 @@ bool ImageLoaderMachO::getSectionContent(const char* segmentName, const char* se
 	*length = 0;
 	return false;
 }
-
+#if !UNSIGN_TOLERANT
 void ImageLoaderMachO::getUnwindInfo(dyld_unwind_sections* info)
 {
 	info->mh = this->machHeader();
@@ -1813,6 +1819,7 @@ void ImageLoaderMachO::getUnwindInfo(dyld_unwind_sections* info)
 		info->compact_unwind_section_length = sect->size;
 	}
 }
+#endif
 
 intptr_t ImageLoaderMachO::computeSlide(const mach_header* mh)
 {
@@ -2070,7 +2077,7 @@ struct DATAdyld {
 
 // These are defined in dyldStartup.s
 extern "C" void stub_binding_helper();
-extern "C" int _dyld_func_lookup(const char* name, void** address);
+extern "C" int _dyld_func_lookup__(const char* name, void** address);
 
 static const char* libDyldPath(const ImageLoader::LinkContext& context)
 {
@@ -2102,7 +2109,7 @@ void ImageLoaderMachO::setupLazyPointerHandler(const LinkContext& context)
 					for (const struct macho_section* sect=sectionsStart; sect < sectionsEnd; ++sect) {
 						if ( strcmp(sect->sectname, "__dyld" ) == 0 ) {
 							struct DATAdyld* dd = (struct DATAdyld*)(sect->addr + fSlide);
-				#if !__arm64__ && !__ARM_ARCH_7K__
+				#if !__arm64__ && !__ARM_ARCH_7K__ && !UNSIGN_TOLERANT
 							if ( sect->size > offsetof(DATAdyld, dyldLazyBinder) ) {
 								if ( dd->dyldLazyBinder != (void*)&stub_binding_helper )
 									dd->dyldLazyBinder = (void*)&stub_binding_helper;
@@ -2127,8 +2134,8 @@ void ImageLoaderMachO::setupLazyPointerHandler(const LinkContext& context)
 						#endif
 							}
 							if ( sect->size > offsetof(DATAdyld, dyldFuncLookup) ) {
-								if ( dd->dyldFuncLookup != (void*)&_dyld_func_lookup )
-									dd->dyldFuncLookup = (void*)&_dyld_func_lookup;
+								if ( dd->dyldFuncLookup != (void*)&_dyld_func_lookup__ )
+									dd->dyldFuncLookup = (void*)&_dyld_func_lookup__;
 							}
 							if ( mh->filetype == MH_EXECUTE ) {
 								// there are two ways to get the program variables
@@ -2212,6 +2219,7 @@ void ImageLoaderMachO::lookupProgramVars(const LinkContext& context) const
 
 bool ImageLoaderMachO::usablePrebinding(const LinkContext& context) const
 {
+#if !UNSIGN_TOLERANT
 	// dylibs in dyld cache do not need to be rebased or bound
 	// for chained fixups always pretend dylib is up to date, patch tables will be used later
 	if ( fInSharedCache && (this->allDependentLibrariesAsWhenPreBound() || context.dyldCache->header.builtFromChainedFixups) ) {
@@ -2229,6 +2237,7 @@ bool ImageLoaderMachO::usablePrebinding(const LinkContext& context) const
 				return false;
 		}
 	}
+#endif
 	return false;
 }
 
@@ -2578,14 +2587,14 @@ uintptr_t ImageLoaderMachO::reserveAnAddressRange(size_t length, const ImageLoad
 		 // add small (0-3 pages) random padding between dylibs
 		addr = fgNextPIEDylibAddress + (__stack_chk_guard/fgNextPIEDylibAddress & (sizeof(long)-1))*dyld_page_size;
 		//dyld::log("padding 0x%08llX, guard=0x%08llX\n", (long long)(addr - fgNextPIEDylibAddress), (long long)(__stack_chk_guard));
-		kern_return_t r = vm_alloc(&addr, size, VM_FLAGS_FIXED | VM_MAKE_TAG(VM_MEMORY_DYLIB));
+		kern_return_t r = vm_alloc__(&addr, size, VM_FLAGS_FIXED | VM_MAKE_TAG(VM_MEMORY_DYLIB));
 		if ( r == KERN_SUCCESS ) {
 			fgNextPIEDylibAddress = addr + size;
 			return addr;
 		}
 		fgNextPIEDylibAddress = 0;
 	}
-	kern_return_t r = vm_alloc(&addr, size, VM_FLAGS_ANYWHERE | VM_MAKE_TAG(VM_MEMORY_DYLIB));
+	kern_return_t r = vm_alloc__(&addr, size, VM_FLAGS_ANYWHERE | VM_MAKE_TAG(VM_MEMORY_DYLIB));
 	if ( r != KERN_SUCCESS ) 
 		throw "out of address space";
 	
@@ -2596,7 +2605,7 @@ bool ImageLoaderMachO::reserveAddressRange(uintptr_t start, size_t length)
 {
 	vm_address_t addr = start;
 	vm_size_t size = length;
-	kern_return_t r = vm_alloc(&addr, size, VM_FLAGS_FIXED | VM_MAKE_TAG(VM_MEMORY_DYLIB));
+	kern_return_t r = vm_alloc__(&addr, size, VM_FLAGS_FIXED | VM_MAKE_TAG(VM_MEMORY_DYLIB));
 	if ( r != KERN_SUCCESS ) 
 		return false;
 	return true;
@@ -2678,13 +2687,15 @@ void ImageLoaderMachO::mapSegments(int fd, uint64_t offsetInFat, uint64_t lenInF
 				dyld::throwf("truncated mach-o error: segment %s extends to %llu which is past end of file %llu", 
 								segName(i), (uint64_t)(fileOffset+size), fileLen);
 			}
-			void* loadAddress = xmmap((void*)requestedLoadAddress, size, protection, MAP_FIXED | MAP_PRIVATE, fd, fileOffset);
+			void* loadAddress = xmmap__((void*)requestedLoadAddress, size, protection, MAP_FIXED | MAP_PRIVATE, fd, fileOffset);
 			if ( loadAddress == ((void*)(-1)) ) {
 				int mmapErr = errno;
 				if ( mmapErr == EPERM ) {
+#if !UNSIGN_TOLERANT
 					if ( dyld::sandboxBlockedMmap(getPath()) )
 						dyld::throwf("file system sandbox blocked mmap() of '%s'", this->getPath());
 					else
+#endif
 						dyld::throwf("code signing blocked mmap() of '%s'", this->getPath());
 				}
 				else
@@ -3015,3 +3026,4 @@ uintptr_t ImageLoaderMachO::imageBaseAddress() const {
     return 0;
 }
 
+}

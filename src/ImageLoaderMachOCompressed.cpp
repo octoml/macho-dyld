@@ -23,7 +23,7 @@
  */
 
 
-#if __arm__ || __arm64__
+#if (__arm__ || __arm64__ ) && !UNSIGN_TOLERANT
   #include <System/sys/mman.h>
 #else
   #include <sys/mman.h>
@@ -40,14 +40,20 @@
 #include <mach-o/loader.h> 
 #include <mach-o/dyld_images.h>
 
+#if !UNSIGN_TOLERANT
 #include "dyld2.h"
+#endif
 #include "ImageLoaderMachOCompressed.h"
+#if !UNSIGN_TOLERANT
 #include "Closure.h"
+#endif
 #include "Array.h"
 
 #ifndef BIND_SUBOPCODE_THREADED_SET_JOP
    #define BIND_SUBOPCODE_THREADED_SET_JOP								0x0F
 #endif
+
+namespace isolator {
 
 // relocation_info.r_length field has value 3 for 64-bit executables and value 2 for 32-bit executables
 #if __LP64__
@@ -205,9 +211,11 @@ ImageLoaderMachOCompressed* ImageLoaderMachOCompressed::instantiateFromCache(con
 		
 #if TARGET_OS_SIMULATOR
 		char realPath[MAXPATHLEN] = { 0 };
+#if !UNSIGN_TOLERANT
 		if ( dyld::gLinkContext.rootPaths == NULL )
 			throw "root path is not set";
 		strlcpy(realPath, dyld::gLinkContext.rootPaths[0], MAXPATHLEN);
+#endif // !UNSIGN_TOLERANT
 		strlcat(realPath, path, MAXPATHLEN);
 		image->setPaths(path, realPath);
 #endif
@@ -235,7 +243,7 @@ ImageLoaderMachOCompressed* ImageLoaderMachOCompressed::instantiateFromMemory(co
 		
 		// vmcopy segments
 		image->mapSegments((const void*)mh, len, context);
-		
+
 		// for compatibility, never unload dylibs loaded from memory
 		image->setNeverUnload();
 
@@ -648,7 +656,7 @@ uintptr_t ImageLoaderMachOCompressed::resolveFlat(const LinkContext& context, co
 	throwSymbolNotFound(context, symbolName, this->getPath(), "", "flat namespace");
 }
 
-
+#if !UNSIGN_TOLERANT
 static void patchCacheUsesOf(const ImageLoader::LinkContext& context, const dyld3::closure::Image* overriddenImage,
 							 uint32_t cacheOffsetOfImpl, const char* symbolName, uintptr_t newImpl)
 {
@@ -681,7 +689,7 @@ static void patchCacheUsesOf(const ImageLoader::LinkContext& context, const dyld
 		}
 	});
 }
-
+#endif
 
 
 uintptr_t ImageLoaderMachOCompressed::resolveWeak(const LinkContext& context, const char* symbolName, bool weak_import,
@@ -689,6 +697,7 @@ uintptr_t ImageLoaderMachOCompressed::resolveWeak(const LinkContext& context, co
 {
 	const Symbol* sym;
 	CoalesceNotifier notifier = nullptr;
+#if !UNSIGN_TOLERANT
 	__block uintptr_t   foundOutsideCache     = 0;
 	__block const char* foundOutsideCachePath = nullptr;
 	__block uintptr_t   lastFoundInCache      = 0;
@@ -721,7 +730,7 @@ uintptr_t ImageLoaderMachOCompressed::resolveWeak(const LinkContext& context, co
 			}
 		};
 	}
-
+#endif
 	if ( context.coalescedExportFinder(symbolName, &sym, foundIn, notifier) ) {
 		if ( *foundIn != this )
 			context.addDynamicReference(this, const_cast<ImageLoader*>(*foundIn));
@@ -759,6 +768,7 @@ uintptr_t ImageLoaderMachOCompressed::resolveTwolevel(const LinkContext& context
 	// nowhere to be found, check if maybe this image is too new for this OS
 	char versMismatch[256];
 	versMismatch[0] = '\0';
+#if !UNSIGN_TOLERANT
 	uint32_t imageMinOS = this->minOSVersion();
 	// dyld is always built for the current OS, so we can get the current OS version
 	// from the load command in dyld itself.
@@ -773,6 +783,7 @@ uintptr_t ImageLoaderMachOCompressed::resolveTwolevel(const LinkContext& context
 		strcpy(versMismatch, msg);
 		::free((void*)msg);
 	}
+#endif
 	throwSymbolNotFound(context, symbolName, this->getPath(), versMismatch, definedInImage->getPath());
 }
 
@@ -914,8 +925,12 @@ void ImageLoaderMachOCompressed::doBind(const LinkContext& context, bool forceLa
 		vmAccountingSetSuspended(context, bindingBecauseOfRoot);
 
 		if ( fChainedFixups != NULL ) {
+#if !UNSIGN_TOLERANT
 			const dyld_chained_fixups_header* fixupsHeader = (dyld_chained_fixups_header*)(fLinkEditBase + fChainedFixups->dataoff);
 			doApplyFixups(context, fixupsHeader);
+#else
+			dyld::throwf("Unimplemented");
+#endif
 		}
 		else if ( fDyldInfo != nullptr ) {
 		#if TEXT_RELOC_SUPPORT
@@ -958,6 +973,7 @@ void ImageLoaderMachOCompressed::doBind(const LinkContext& context, bool forceLa
 	}
 
 	// See if this dylib overrides something in the dyld cache
+#if !UNSIGN_TOLERANT
 	uint32_t dyldCacheOverrideImageNum;
 	if ( context.dyldCache && context.dyldCache->header.builtFromChainedFixups && overridesCachedDylib(dyldCacheOverrideImageNum) ) {
 		// need to patch all other places in cache that point to the overridden dylib, to point to this dylib instead
@@ -987,7 +1003,7 @@ void ImageLoaderMachOCompressed::doBind(const LinkContext& context, bool forceLa
 			}
 		});
 	}
-
+#endif
 	// set up dyld entry points in image
 	// do last so flat main executables will have __dyld or __program_vars set up
 	this->setupLazyPointerHandler(context);
@@ -1007,7 +1023,7 @@ void ImageLoaderMachOCompressed::doBindJustLazies(const LinkContext& context)
 												  msg, last, runResolver);
 	});
 }
-
+#if !UNSIGN_TOLERANT
 void ImageLoaderMachOCompressed::doApplyFixups(const LinkContext& context, const dyld_chained_fixups_header* fixupsHeader)
 {
 	const dyld3::MachOLoaded* ml = (dyld3::MachOLoaded*)machHeader();
@@ -1043,9 +1059,11 @@ void ImageLoaderMachOCompressed::doApplyFixups(const LinkContext& context, const
 	if ( diag.hasError() )
 		throw strdup(diag.errorMessage());
 }
+#endif
 
 void ImageLoaderMachOCompressed::registerInterposing(const LinkContext& context)
 {
+#if !UNSIGN_TOLERANT
 	// mach-o files advertise interposing by having a __DATA __interpose section
 	struct InterposeData { uintptr_t replacement; uintptr_t replacee; };
 
@@ -1161,11 +1179,18 @@ void ImageLoaderMachOCompressed::registerInterposing(const LinkContext& context)
 			}
 		}
 	});
+#else
+	throw "Unimplemented";
+#endif
 }
 
 bool ImageLoaderMachOCompressed::usesChainedFixups() const
 {
+#if !UNSIGN_TOLERANT
 	return ((dyld3::MachOLoaded*)machHeader())->hasChainedFixups();
+#else
+	return false;
+#endif
 }
 
 struct ThreadedBindData {
@@ -1875,6 +1900,7 @@ uintptr_t ImageLoaderMachOCompressed::interposeAt(const LinkContext& context, Im
 
 void ImageLoaderMachOCompressed::doInterpose(const LinkContext& context)
 {
+#if !UNSIGN_TOLERANT
 	if ( context.verboseInterposing )
 		dyld::log("dyld: interposing %lu tuples onto image: %s\n", fgInterposingTuples.size(), this->getPath());
 
@@ -1908,6 +1934,9 @@ void ImageLoaderMachOCompressed::doInterpose(const LinkContext& context)
 		}
 
 	}
+#else
+	throw "Unimplemented";
+#endif
 }
 
 
@@ -2091,7 +2120,7 @@ void ImageLoaderMachOCompressed::updateOptimizedLazyPointers(const LinkContext& 
 
 void ImageLoaderMachOCompressed::registerEncryption(const encryption_info_command* encryptCmd, const LinkContext& context)
 {
-#if (__arm__ || __arm64__) && !TARGET_OS_SIMULATOR
+#if (__arm__ || __arm64__) && !TARGET_OS_SIMULATOR && !UNSIGN_TOLERANT
 	if ( encryptCmd == NULL )
 		return;
 	// fMachOData not set up yet, need to manually find mach_header
@@ -2117,5 +2146,5 @@ void ImageLoaderMachOCompressed::registerEncryption(const encryption_info_comman
 #endif
 }
 
-
+}
 
