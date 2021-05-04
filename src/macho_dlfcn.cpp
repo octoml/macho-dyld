@@ -1,0 +1,163 @@
+/* -*- mode: C++; c-basic-offset: 4; tab-width: 4 -*-
+ *
+ * Copyright (c) 2004-2010 Apple Inc. All rights reserved.
+ *
+ * @APPLE_LICENSE_HEADER_START@
+ *
+ * This file contains Original Code and/or Modifications of Original Code
+ * as defined in and that are subject to the Apple Public Source License
+ * Version 2.0 (the 'License'). You may not use this file except in
+ * compliance with the License. Please obtain a copy of the License at
+ * http://www.opensource.apple.com/apsl/ and read it before using this
+ * file.
+ *
+ * The Original Code and all software distributed under the License are
+ * distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER
+ * EXPRESS OR IMPLIED, AND APPLE HEREBY DISCLAIMS ALL SUCH WARRANTIES,
+ * INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR NON-INFRINGEMENT.
+ * Please see the License for the specific language governing rights and
+ * limitations under the License.
+ *
+ * @APPLE_LICENSE_HEADER_END@
+ */
+
+#include <macho_dlfcn.h>
+#include <fstream>
+#include <sys/mman.h>
+
+#include "ImageLoaderMachO.h"
+#include "ImageLoaderProxy.h"
+
+namespace isolator {
+
+extern ImageLoader::LinkContext g_linkContext;
+
+thread_local char* _err_buf = nullptr;
+thread_local size_t _err_buf_size = 0;
+
+void clean_error() {
+  if (_err_buf)
+    _err_buf[0] = 0;
+}
+
+void set_dlerror(const std::string &msg) {
+  if (msg.size() >= _err_buf_size) {
+    if (_err_buf)
+      free(_err_buf);
+
+    _err_buf = static_cast<char*>(malloc(msg.size() + 1));
+    _err_buf_size = msg.size() + 1;
+  }
+  strcpy(_err_buf, msg.c_str());
+}
+
+extern "C" char* macho_dlerror(void) {
+  if (_err_buf && _err_buf[0] == 0)
+    return nullptr;
+
+  return _err_buf;
+}
+
+static bool is_absolute_path(const char * path) {
+  return path && path[0] == '/';
+}
+
+std::string base_name(const std::string &path) {
+  return path.substr(path.find_last_of("/\\") + 1);
+}
+
+void* with_error(std::string str) {
+  static std::string error_prefix =
+        "===\n"
+        "=== You are using custom mach-o dynamic linker.\n"
+        "=== It provides only limited functionality.\n"
+        "=== Do not use it in production code!\n"
+        "===\n";
+  set_dlerror(error_prefix + str);
+  return nullptr;
+}
+
+extern "C" void* macho_dlopen(const char * __path, int __mode) {
+  // At first attempt to load with using regular dlopen function.
+  // ImageLoaderProxy is a wrapper on top of system dlopen.
+  try {
+      auto img = ImageLoaderProxy::instantiate(__path);
+      return img;
+  } catch (...) {}
+
+  // In case of first attempt failure will try our custom MachO Image Loader
+  try {
+    clean_error();
+    if (!is_absolute_path(__path))
+      return with_error("Only absolute path is supported. "
+                        "Please specify full path to binary.");
+
+    std::fstream lib_f(__path, std::ios::in | std::ios::binary);
+    if (!lib_f.is_open())
+      return with_error(std::string("File ") + __path + " doesn't exist.");
+
+    std::streampos fsize = lib_f.tellg();
+    lib_f.seekg(0, std::ios::end);
+    fsize = lib_f.tellg() - fsize;
+    lib_f.seekg(0, std::ios::beg);
+
+    std::vector<char> buff(fsize);
+    lib_f.read(buff.data(), fsize);
+    lib_f.close();
+
+    std::string file_name = base_name(__path);
+
+    auto mh = reinterpret_cast<const macho_header*>(buff.data());
+    auto image = ImageLoaderMachO::instantiateFromMemory(file_name.c_str(), mh, fsize, g_linkContext);
+
+    bool forceLazysBound = true;
+    bool preflightOnly = false;
+    bool neverUnload = false;
+
+    // Link step
+    std::vector<const char*> rpaths;
+    ImageLoader::RPathChain loaderRPaths(NULL, &rpaths);
+    image->link(g_linkContext, forceLazysBound, preflightOnly, neverUnload, loaderRPaths, __path);
+
+    // Initialization of static object
+    ImageLoader::InitializerTimingList initializerTimes[1];
+    initializerTimes[0].count = 0;
+    image->runInitializers(g_linkContext, initializerTimes[0]);
+
+    return image;
+  } catch (const char * msg) {
+    return with_error(std::string("Error happens during dlopen execution. ") + msg);
+  } catch (...) {
+    return with_error(std::string("Error happens during dlopen execution. Unknown reason..."));
+  }
+}
+
+extern "C" void* macho_dlsym(void * __handle, const char * __symbol) {
+  try {
+    clean_error();
+
+    std::string underscoredName = "_" + std::string(__symbol);
+    const ImageLoader* image = reinterpret_cast<ImageLoader*>(__handle);
+
+    auto sym = image->findExportedSymbol(underscoredName.c_str(), true, &image);
+    if (sym != NULL) {
+      auto addr = image->getExportedSymbolAddress(sym, g_linkContext, nullptr, false,
+                                                  underscoredName.c_str());
+      return reinterpret_cast<void*>(addr);
+    }
+    return with_error(std::string("Symbol ") + __symbol + " is not found.");
+  } catch (const char * msg) {
+    return with_error(std::string("Error happens during dlsym execution. ") + msg);
+  } catch (...) {
+    return with_error(std::string("Error happens during dlsym execution. Unknown reason..."));
+  }
+}
+
+extern "C" int macho_dlclose(void * __handle) {
+  ImageLoader* image = reinterpret_cast<ImageLoader*>(__handle);
+  ImageLoader::deleteImage(image);
+  return 0;
+}
+
+} // namespace isolator
