@@ -22,7 +22,7 @@
  * @APPLE_LICENSE_HEADER_END@
  */
 
-#include <macho_dlfcn.h>
+#include <custom_dlfcn.h>
 #include <fstream>
 #include <sys/mman.h>
 
@@ -51,13 +51,6 @@ void set_dlerror(const std::string &msg) {
   strcpy(_err_buf, msg.c_str());
 }
 
-extern "C" char* macho_dlerror(void) {
-  if (_err_buf && _err_buf[0] == 0)
-    return nullptr;
-
-  return _err_buf;
-}
-
 static bool is_absolute_path(const char * path) {
   return path && path[0] == '/';
 }
@@ -79,7 +72,14 @@ void* with_error(std::string msg) {
   return nullptr;
 }
 
-extern "C" void* macho_dlopen(const char * __path, int __mode) {
+extern "C" char* custom_dlerror(void) {
+    if (_err_buf && _err_buf[0] == 0)
+        return nullptr;
+
+    return _err_buf;
+}
+
+extern "C" void* custom_dlopen(const char * __path, int __mode) {
   try {
     clean_error();
     if (!is_absolute_path(__path))
@@ -127,7 +127,7 @@ extern "C" void* macho_dlopen(const char * __path, int __mode) {
   }
 }
 
-extern "C" void* macho_dlsym(void * __handle, const char * __symbol) {
+extern "C" void* custom_dlsym(void * __handle, const char * __symbol) {
   try {
     clean_error();
 
@@ -148,7 +148,7 @@ extern "C" void* macho_dlsym(void * __handle, const char * __symbol) {
   }
 }
 
-extern "C" int macho_dlclose(void * __handle) {
+extern "C" int custom_dlclose(void * __handle) {
   ImageLoader* image = reinterpret_cast<ImageLoader*>(__handle);
   ImageLoader::deleteImage(image);
   return 0;
