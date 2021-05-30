@@ -245,8 +245,9 @@ ImageLoaderMachOCompressed* ImageLoaderMachOCompressed::instantiateFromMemory(co
 		image->mapSegments((const void*)mh, len, context);
 
 		// for compatibility, never unload dylibs loaded from memory
+#if !UNSIGN_TOLERANT
 		image->setNeverUnload();
-
+#endif
 		image->disableCoverageCheck();
 
 		// bundle loads need path copied

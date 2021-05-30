@@ -149,6 +149,11 @@ extern "C" void* custom_dlsym(void * __handle, const char * __symbol) {
 }
 
 extern "C" int custom_dlclose(void * __handle) {
+  if (__handle == nullptr) {
+    set_dlerror("Error happens during dlclose execution. Handle does not refer "
+                "to an open object.");
+    return -1;
+  }
   ImageLoader* image = reinterpret_cast<ImageLoader*>(__handle);
   ImageLoader::deleteImage(image);
   return 0;
