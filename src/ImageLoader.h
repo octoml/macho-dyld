@@ -3,14 +3,14 @@
  * Copyright (c) 2004-2010 Apple Inc. All rights reserved.
  *
  * @APPLE_LICENSE_HEADER_START@
- * 
+ *
  * This file contains Original Code and/or Modifications of Original Code
  * as defined in and that are subject to the Apple Public Source License
  * Version 2.0 (the 'License'). You may not use this file except in
  * compliance with the License. Please obtain a copy of the License at
  * http://www.opensource.apple.com/apsl/ and read it before using this
  * file.
- * 
+ *
  * The Original Code and all software distributed under the License are
  * distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, AND APPLE HEREBY DISCLAIMS ALL SUCH WARRANTIES,
@@ -18,7 +18,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR NON-INFRINGEMENT.
  * Please see the License for the specific language governing rights and
  * limitations under the License.
- * 
+ *
  * @APPLE_LICENSE_HEADER_END@
  */
 
@@ -34,8 +34,8 @@
 #if !UNSIGN_TOLERANT
 #include <mach/shared_region.h>
 #endif
-#include <mach-o/loader.h> 
-#include <mach-o/nlist.h> 
+#include <mach-o/loader.h>
+#include <mach-o/nlist.h>
 #include <mach-o/dyld_images.h>
 #if !UNSIGN_TOLERANT
 #include <mach-o/dyld_priv.h>
@@ -141,10 +141,10 @@ extern "C" 	void* xmmap__(void* addr, size_t len, int prot, int flags, int fd, o
 
 #if __LP64__
 	struct macho_header				: public mach_header_64  {};
-	struct macho_nlist				: public nlist_64  {};	
+	struct macho_nlist				: public nlist_64  {};
 #else
 	struct macho_header				: public mach_header  {};
-	struct macho_nlist				: public nlist  {};	
+	struct macho_nlist				: public nlist  {};
 #endif
 
 
@@ -204,16 +204,16 @@ public:
 	typedef uint32_t DefinitionFlags;
 	static const DefinitionFlags kNoDefinitionOptions = 0;
 	static const DefinitionFlags kWeakDefinition = 1;
-	
+
 	typedef uint32_t ReferenceFlags;
 	static const ReferenceFlags kNoReferenceOptions = 0;
 	static const ReferenceFlags kWeakReference = 1;
 	static const ReferenceFlags kTentativeDefinition = 2;
-	
+
 	enum PrebindMode { kUseAllPrebinding, kUseSplitSegPrebinding, kUseAllButAppPredbinding, kUseNoPrebinding };
 	enum BindingOptions { kBindingNone, kBindingLazyPointers, kBindingNeverSetLazyPointers };
 	enum SharedRegionMode { kUseSharedRegion, kUsePrivateSharedRegion, kDontUseSharedRegion, kSharedRegionIsSharedCache };
-	
+
 	struct Symbol;  // abstact symbol
 
 	struct MappedRegion {
@@ -237,7 +237,7 @@ public:
 		ImageLoader* from;
 		ImageLoader* to;
 	};
-	
+
 	struct InitializerTimingList
 	{
 		uintptr_t	count;
@@ -258,7 +258,7 @@ public:
     struct EqualCString {
         static bool equal(const char* s1, const char* s2);
     };
-	
+
 	struct LinkContext {
 		ImageLoader*	(*loadLibrary)(const char* libraryName, bool search, const char* origin, const RPathChain* rpaths, unsigned& cacheIndex);
 		void			(*terminationRecorder)(ImageLoader* image);
@@ -286,7 +286,7 @@ public:
 		dyld_image_state_change_handler (*getPreInitNotifyHandler)(unsigned index);
 		dyld_image_state_change_handler (*getBoundBatchHandler)(unsigned index);
 #endif
-		
+
 #if SUPPORT_OLD_CRT_INITIALIZATION
 		void			(*setRunInitialzersOldWay)();
 #endif
@@ -348,7 +348,7 @@ public:
 		bool			verboseInterposing;
 		bool			verboseCodeSignatures;
 	};
-	
+
 	struct CoalIterator
 	{
 		ImageLoader*	image;
@@ -365,33 +365,33 @@ public:
 		uintptr_t		addend;
 		uintptr_t		imageIndex;
 	};
-	
+
 	virtual	void			initializeCoalIterator(CoalIterator&, unsigned int loadOrder, unsigned imageIndex) = 0;
 	virtual	bool			incrementCoalIterator(CoalIterator&) = 0;
 	virtual	uintptr_t		getAddressCoalIterator(CoalIterator&, const LinkContext& context) = 0;
 	virtual	void			updateUsesCoalIterator(CoalIterator&, uintptr_t newAddr, ImageLoader* target, unsigned targetIndex, const LinkContext& context) = 0;
-	
+
 	struct UninitedUpwards
 	{
 		uintptr_t	 						 count;
 		std::pair<ImageLoader*, const char*> imagesAndPaths[1];
 	};
 
-	
+
 										// constructor is protected, but anyone can delete an image
 	virtual								~ImageLoader();
-	
-										// link() takes a newly instantiated ImageLoader and does all 
+
+										// link() takes a newly instantiated ImageLoader and does all
 										// fixups needed to make it usable by the process
 	void								link(const LinkContext& context, bool forceLazysBound, bool preflight, bool neverUnload, const RPathChain& loaderRPaths, const char* imagePath);
-	
-										// runInitializers() is normally called in link() but the main executable must 
+
+										// runInitializers() is normally called in link() but the main executable must
 										// run crt code before initializers
 	void								runInitializers(const LinkContext& context, InitializerTimingList& timingInfo);
-	
+
 										// called after link() forces all lazy pointers to be bound
 	void								bindAllLazyPointers(const LinkContext& context, bool recursive);
-	
+
 										// used by dyld to see if a requested library is already loaded (might be symlink)
 	bool								statMatch(const struct stat& stat_buf) const;
 
@@ -415,19 +415,19 @@ public:
 										// image was loaded with NSADDIMAGE_OPTION_MATCH_FILENAME_BY_INSTALLNAME and all clients are looking for install path
 	bool								matchInstallPath() const;
 	void								setMatchInstallPath(bool);
-	
+
 										// mark that this image's exported symbols should be ignored when linking other images (e.g. RTLD_LOCAL)
 	void								setHideExports(bool hide = true);
-	
-										// check if this image's exported symbols should be ignored when linking other images 
+
+										// check if this image's exported symbols should be ignored when linking other images
 	bool								hasHiddenExports() const;
-	
+
 										// checks if this image is already linked into the process
 	bool								isLinked() const;
-	
+
 										// even if image is deleted, leave segments mapped in
 	void								setLeaveMapped();
-	
+
 										// even if image is deleted, leave segments mapped in
 	bool								leaveMapped() { return fLeaveMapped; }
 
@@ -451,19 +451,19 @@ public:
 
 										// only valid for main executables, returns a pointer its entry point from LC_MAIN
 	virtual void*						getEntryFromLC_MAIN() const = 0;
-	
+
 										// only valid for main executables, returns a pointer its main from LC_UNIXTHREAD
 	virtual void*						getEntryFromLC_UNIXTHREAD() const = 0;
-	
+
 										// dyld API's require each image to have an associated mach_header
 	virtual const struct mach_header*   machHeader() const = 0;
-	
+
 										// dyld API's require each image to have a slide (actual load address minus preferred load address)
 	virtual uintptr_t					getSlide() const = 0;
-	
+
 										// last address mapped by image
 	virtual const void*					getEnd() const = 0;
-	
+
 										// image has exports that participate in runtime coalescing
 	virtual bool						hasCoalescedExports() const = 0;
 
@@ -474,83 +474,83 @@ public:
 
 										// search symbol table of definitions in this image for requested name
 	virtual const Symbol*				findExportedSymbol(const char* name, bool searchReExports, const char* thisPath, const ImageLoader** foundIn) const = 0;
-	
+
 										// search symbol table of definitions in this image for requested name
 	virtual const Symbol*				findExportedSymbol(const char* name, bool searchReExports, const ImageLoader** foundIn) const {
 											return findExportedSymbol(name, searchReExports, this->getPath(), foundIn);
 										}
-	
+
 										// gets address of implementation (code) of the specified exported symbol
-	virtual uintptr_t					getExportedSymbolAddress(const Symbol* sym, const LinkContext& context, 
+	virtual uintptr_t					getExportedSymbolAddress(const Symbol* sym, const LinkContext& context,
 													const ImageLoader* requestor=NULL, bool runResolver=false, const char* symbolName=NULL) const = 0;
-	
+
 										// gets attributes of the specified exported symbol
 	virtual DefinitionFlags				getExportedSymbolInfo(const Symbol* sym) const = 0;
-	
+
 										// gets name of the specified exported symbol
 	virtual const char*					getExportedSymbolName(const Symbol* sym) const = 0;
-	
+
 										// gets how many symbols are exported by this image
 	virtual uint32_t					getExportedSymbolCount() const = 0;
-			
+
 										// gets the i'th exported symbol
 	virtual const Symbol*				getIndexedExportedSymbol(uint32_t index) const = 0;
-			
+
 										// find exported symbol as if imported by this image
 										// used by RTLD_NEXT
 	virtual const Symbol*				findExportedSymbolInDependentImages(const char* name, const LinkContext& context, const ImageLoader** foundIn) const;
-	
+
 										// find exported symbol as if imported by this image
 										// used by RTLD_SELF
 	virtual const Symbol*				findExportedSymbolInImageOrDependentImages(const char* name, const LinkContext& context, const ImageLoader** foundIn) const;
-	
+
 										// gets how many symbols are imported by this image
 	virtual uint32_t					getImportedSymbolCount() const = 0;
-	
+
 										// gets the i'th imported symbol
 	virtual const Symbol*				getIndexedImportedSymbol(uint32_t index) const = 0;
-			
+
 										// gets attributes of the specified imported symbol
 	virtual ReferenceFlags				getImportedSymbolInfo(const Symbol* sym) const = 0;
-			
+
 										// gets name of the specified imported symbol
 	virtual const char*					getImportedSymbolName(const Symbol* sym) const = 0;
-			
+
 										// find the closest symbol before addr
 	virtual const char*					findClosestSymbol(const void* addr, const void** closestAddr) const = 0;
-	
+
 										// for use with accelerator tables
 	virtual const char*					getIndexedPath(unsigned) const { return getPath(); }
 	virtual const char*					getIndexedShortName(unsigned) const { return getShortName(); }
 
 										// checks if this image is a bundle and can be loaded but not linked
 	virtual bool						isBundle() const = 0;
-	
-										// checks if this image is a dylib 
+
+										// checks if this image is a dylib
 	virtual bool						isDylib() const = 0;
-	
-										// checks if this image is a main executable 
+
+										// checks if this image is a main executable
 	virtual bool						isExecutable() const = 0;
-	
-										// checks if this image is a main executable 
+
+										// checks if this image is a main executable
 	virtual bool						isPositionIndependentExecutable() const = 0;
-	
+
 										// only for main executable
 	virtual bool						forceFlat() const = 0;
-	
+
 										// called at runtime when a lazily bound function is first called
 	virtual uintptr_t					doBindLazySymbol(uintptr_t* lazyPointer, const LinkContext& context) = 0;
-	
+
 										// called at runtime when a fast lazily bound function is first called
 	virtual uintptr_t					doBindFastLazySymbol(uint32_t lazyBindingInfoOffset, const LinkContext& context,
 															void (*lock)(), void (*unlock)()) = 0;
 
 										// calls termination routines (e.g. C++ static destructors for image)
 	virtual void						doTermination(const LinkContext& context) = 0;
-					
+
 										// return if this image has initialization routines
 	virtual bool						needsInitialization() = 0;
-			
+
 										// return if this image has specified section and set start and length
 	virtual bool						getSectionContent(const char* segmentName, const char* sectionName, void** start, size_t* length) = 0;
 #if !UNSIGN_TOLERANT
@@ -562,19 +562,19 @@ public:
 
 										// given a pointer into an image, find which segment and section it is in
 	virtual bool						findSection(const void* imageInterior, const char** segmentName, const char** sectionName, size_t* sectionOffset) = 0;
-	
+
 										// the image supports being prebound
 	virtual bool						isPrebindable() const = 0;
-	
+
 										// the image is prebindable and its prebinding is valid
 	virtual bool						usablePrebinding(const LinkContext& context) const = 0;
-	
+
 										// add all RPATH paths this image contains
 	virtual	void						getRPaths(const LinkContext& context, std::vector<const char*>&) const = 0;
-	
+
 										// image has or uses weak definitions that need runtime coalescing
 	virtual bool						participatesInCoalescing() const = 0;
-		
+
 										// if image has a UUID, copy into parameter and return true
 	virtual	bool						getUUID(uuid_t) const = 0;
 
@@ -583,7 +583,7 @@ public:
 
 										// record interposing for any late binding
 	void								addDynamicInterposingTuples(const struct dyld_interpose_tuple array[], size_t count);
-		
+
 	virtual const char*					libPath(unsigned int) const = 0;
 
 										// Image has objc sections, so information objc about when it comes and goes
@@ -594,7 +594,7 @@ public:
 
 
 //
-// A segment is a chunk of an executable file that is mapped into memory.  
+// A segment is a chunk of an executable file that is mapped into memory.
 //
 	virtual unsigned int				segmentCount() const = 0;
 	virtual const char*					segName(unsigned int) const = 0;
@@ -611,18 +611,18 @@ public:
 	virtual uintptr_t					segActualLoadAddress(unsigned int) const = 0;
 	virtual uintptr_t					segActualEndAddress(unsigned int) const = 0;
 
-	
+
 										// info from LC_VERSION_MIN_MACOSX or LC_VERSION_MIN_IPHONEOS
 	virtual uint32_t					sdkVersion() const = 0;
 	virtual uint32_t					minOSVersion() const = 0;
-	
+
 										// if the image contains interposing functions, register them
 	virtual void						registerInterposing(const LinkContext& context) = 0;
 
 	virtual bool						usesChainedFixups() const { return false; }
 
 	virtual void						makeDataReadOnly() const {}
-	
+
 										// when resolving symbols look in subImage if symbol can't be found
 	void								reExport(ImageLoader* subImage);
 
@@ -640,11 +640,11 @@ public:
 
 										// used to sort images bottom-up
 	int									compare(const ImageLoader* right) const;
-	
+
 	void								incrementDlopenReferenceCount() { ++fDlopenReferenceCount; }
 
 	bool								decrementDlopenReferenceCount();
-	
+
 	void								printReferenceCounts();
 
 	uint32_t							dlopenCount() const { return fDlopenReferenceCount; }
@@ -655,7 +655,7 @@ public:
 
 	void								setNeverUnload() { fNeverUnload = true; fLeaveMapped = true; }
 	void								setNeverUnloadRecursive();
-	
+
 	void								forEachReExportDependent( void (^callback)(const ImageLoader*, bool& stop)) const;
 
 	bool								isReferencedDownward() { return fIsReferencedDownward; }
@@ -663,7 +663,7 @@ public:
 	virtual void						recursiveMakeDataReadOnly(const LinkContext& context);
 
 	virtual uintptr_t					resolveWeak(const LinkContext& context, const char* symbolName, bool weak_import, bool runResolver,
-													const ImageLoader** foundIn) { return 0; } 
+													const ImageLoader** foundIn) { return 0; }
 
 										// triggered by DYLD_PRINT_STATISTICS to write info on work done and how fast
 	static void							printStatistics(unsigned int imageCount, const InitializerTimingList& timingInfo);
@@ -671,9 +671,9 @@ public:
 
 										// used with DYLD_IMAGE_SUFFIX
 	static void							addSuffix(const char* path, const char* suffix, char* result);
-	
+
 	static uint32_t						hash(const char*);
-	
+
 	static const uint8_t*				trieWalk(const uint8_t* start, const uint8_t* end, const char* stringToFind);
 
 										// used instead of directly deleting image
@@ -685,32 +685,32 @@ public:
 	static void							applyInterposingToDyldCache(const LinkContext& context);
 
 			bool						dependsOn(ImageLoader* image);
-			
+
  			void						setPath(const char* path);
 			void						setPaths(const char* path, const char* realPath);
 			void						setPathUnowned(const char* path);
-						
+
 			void						clearDepth() { fDepth = 0; }
 			int							getDepth() { return fDepth; }
-			
+
 			void						setBeingRemoved() { fBeingRemoved = true; }
 			bool						isBeingRemoved() const { return fBeingRemoved; }
-			
+
 			void						markNotUsed() { fMarkedInUse = false; }
 			void						markedUsedRecursive(const std::vector<DynamicReference>&);
 			bool						isMarkedInUse() const	{ return fMarkedInUse; }
 
 			void						setAddFuncNotified() { fAddFuncNotified = true; }
 			bool						addFuncNotified() const { return fAddFuncNotified; }
-	
+
 			void						setObjCMappedNotified() { fObjCMappedNotified = true; }
 			bool						objCMappedNotified() const { return fObjCMappedNotified; }
 
-	struct InterposeTuple { 
-		uintptr_t		replacement; 
+	struct InterposeTuple {
+		uintptr_t		replacement;
 		ImageLoader*	neverImage;			// don't apply replacement to this image
 		ImageLoader*	onlyImage;			// only apply replacement to this image
-		uintptr_t		replacee; 
+		uintptr_t		replacee;
 	};
 
 	static uintptr_t read_uleb128(const uint8_t*& p, const uint8_t* end);
@@ -718,13 +718,13 @@ public:
 
 	void			vmAccountingSetSuspended(const LinkContext& context, bool suspend);
 
-protected:			
+protected:
 	// abstract base class so all constructors protected
-					ImageLoader(const char* path, unsigned int libCount); 
+					ImageLoader(const char* path, unsigned int libCount);
 					ImageLoader(const ImageLoader&);
 	void			operator=(const ImageLoader&);
 	void			operator delete(void* image) throw() { ::free(image); }
-	
+
 
 	struct LibraryInfo {
 		uint32_t		checksum;
@@ -739,7 +739,7 @@ protected:
 						isReExported : 1,
 						isSubFramework : 1;
 	};
-	
+
 	struct DependentLibraryInfo {
 		const char*			name;
 		LibraryInfo			info;
@@ -773,39 +773,39 @@ protected:
 
 								// fill in information about dependent libraries (array length is fLibraryCount)
 	virtual void				doGetDependentLibraries(DependentLibraryInfo libs[]) = 0;
-	
+
 								// called on images that are libraries, returns info about itself
 	virtual LibraryInfo			doGetLibraryInfo(const LibraryInfo& requestorInfo) = 0;
-	
+
 								// do any fix ups in this image that depend only on the load address of the image
 	virtual void				doRebase(const LinkContext& context) = 0;
-	
+
 								// do any symbolic fix ups in this image
 	virtual void				doBind(const LinkContext& context, bool forceLazysBound, const ImageLoader* reExportParent) = 0;
-	
+
 								// called later via API to force all lazy pointer to be bound
 	virtual void				doBindJustLazies(const LinkContext& context) = 0;
-	
+
 								// if image has any dtrace DOF sections, append them to list to be registered
 	virtual void				doGetDOFSections(const LinkContext& context, std::vector<DOFInfo>& dofs) = 0;
-	
+
 								// do interpose
 	virtual void				doInterpose(const LinkContext& context) = 0;
 
 								// run any initialization routines in this image
 	virtual bool				doInitialization(const LinkContext& context) = 0;
-	
+
 								// return if this image has termination routines
 	virtual bool				needsTermination() = 0;
-	
+
 								// support for runtimes in which segments don't have to maintain their relative positions
-	virtual bool				segmentsMustSlideTogether() const = 0;	
-	
+	virtual bool				segmentsMustSlideTogether() const = 0;
+
 								// built with PIC code and can load at any address
-	virtual bool				segmentsCanSlide() const = 0;		
+	virtual bool				segmentsCanSlide() const = 0;
 
 								// set how much all segments slide
-	virtual void				setSlide(intptr_t slide) = 0;		
+	virtual void				setSlide(intptr_t slide) = 0;
 
 								// returns if all dependent libraries checksum's were as expected and none slide
 			bool				allDependentLibrariesAsWhenPreBound() const;
@@ -821,13 +821,13 @@ protected:
 
 								// set fState to dyld_image_state_memory_mapped
 	void						setMapped(const LinkContext& context);
-		
+
 	void						setFileInfo(dev_t device, ino_t inode, time_t modDate);
 
 	void						setDepth(uint16_t depth) { fDepth = depth; }
 
 	static uintptr_t			interposedAddress(const LinkContext& context, uintptr_t address, const ImageLoader* notInImage, const ImageLoader* onlyInImage=NULL);
-	
+
 	static uintptr_t			fgNextPIEDylibAddress;
 	static uint32_t				fgImagesWithUsedPrebinding;
 	static uint32_t				fgImagesUsedFromSharedCache;
@@ -855,7 +855,7 @@ public:
 
 protected:
 	static std::vector<InterposeTuple>	fgInterposingTuples;
-	
+
 #if __x86_64__
 	const char*                 fAotPath;
 #endif
@@ -876,7 +876,7 @@ protected:
 	void						recursiveSpinUnLock();
 
 private:
-	const ImageLoader::Symbol*	findExportedSymbolInDependentImagesExcept(const char* name, const ImageLoader** dsiStart, 
+	const ImageLoader::Symbol*	findExportedSymbolInDependentImagesExcept(const char* name, const ImageLoader** dsiStart,
 										const ImageLoader**& dsiCur, const ImageLoader** dsiEnd, const ImageLoader** foundIn) const;
 
 	void						processInitializers(const LinkContext& context, mach_port_t this_thread,
@@ -919,8 +919,7 @@ private:
 
 }
 
-VECTOR_NEVER_DESTRUCTED_EXTERN(isolator::ImageLoader::InterposeTuple);
+// VECTOR_NEVER_DESTRUCTED_EXTERN(isolator::ImageLoader::InterposeTuple);
 
 
 #endif
-
